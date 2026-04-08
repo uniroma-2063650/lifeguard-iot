@@ -1,0 +1,43 @@
+menu "LMIC Configuration"
+
+    choice LMIC_REGION
+        prompt "Region"
+
+        config LMIC_REGION_eu868
+            bool "EU868"
+
+        config LMIC_REGION_us915
+            bool "US915"
+
+        config LMIC_REGION_au915
+            bool "AU915"
+
+        config LMIC_REGION_as923
+            bool "AS923"
+
+        config LMIC_REGION_kr920
+            bool "KR920"
+
+        config LMIC_REGION_in866
+            bool "IN866"
+
+    endchoice
+
+    config LMIC_COUNTRY_CODE_JP
+        bool "Japan (must use the as923 region)"
+
+    choice LMIC_RADIO
+        prompt "Radio"
+
+        config LMIC_RADIO_sx1276
+            bool "SX1276"
+
+        config LMIC_RADIO_sx1261
+            bool "SX1261"
+
+        config LMIC_RADIO_sx1262
+            bool "SX1262"
+
+    endchoice
+
+endmenu

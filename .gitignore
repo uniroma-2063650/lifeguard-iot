@@ -1,0 +1,7 @@
+/.vscode
+/.clangd
+sdkconfig
+sdkconfig.old
+build
+.cache
+*.bak.*
