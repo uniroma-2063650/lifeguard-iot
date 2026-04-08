@@ -15,7 +15,7 @@
 #define PD_ERROR_CHECK(x) ESP_ERROR_CHECK(PDPASS_TO_ERR_OK(x))
 
 #define TASK(name, ...)                                                        \
-  void name(void *args) { __VA_ARGS__ vTaskDelete(NULL); }
+  void name(void *args) { __VA_ARGS__ vTaskDelete(nullptr); }
 
 static AlertSystem alert(AlertPinConfig::DISCONNECTED);
 

@@ -16,7 +16,7 @@
 #define PD_ERROR_CHECK(x) ESP_ERROR_CHECK(PDPASS_TO_ERR_OK(x))
 
 #define TASK(name, ...)                                                        \
-  void name(void *args) { __VA_ARGS__ vTaskDelete(NULL); }
+  void name(void *args) { __VA_ARGS__ vTaskDelete(nullptr); }
 
 static TaskHandle_t process_samples_task_handle;
 
@@ -98,6 +98,6 @@ TASK(process_samples, {
 extern "C" void app_main(void) {
   CommStrap::init(true, 0);
 
-  PD_ERROR_CHECK(xTaskCreate(process_samples, "process_samples", 8192, NULL, 5,
-                             &process_samples_task_handle));
+  PD_ERROR_CHECK(xTaskCreate(process_samples, "process_samples", 8192, nullptr,
+                             5, &process_samples_task_handle));
 }
