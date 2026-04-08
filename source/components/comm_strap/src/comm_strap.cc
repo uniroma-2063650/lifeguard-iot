@@ -42,10 +42,12 @@ void CommStrap::run(Comm *args) {
     {
       MaybeUninit<CommPacket> packet;
       while (xQueueReceive(instance.queue, &packet, 0) == pdTRUE) {
-        ESP_LOGI(TAG, "Sending packet (kind = %u)", packet.value.kind);
         const uint32_t packed_packet = packet.value.pack();
-        LMIC_TX_ERROR_CHECK(LMIC_setTxData2_strict(
-            PORT, (u1_t *)&packed_packet, CommPacket::PACKED_SIZE, false));
+        ESP_LOGI(TAG, "Sending packet (kind = %u): %" PRIx32, packet.value.kind,
+                 packed_packet);
+        // TODO: Need a working network for this
+        // LMIC_TX_ERROR_CHECK(LMIC_setTxData2_strict(
+        //     PORT, (u1_t *)&packed_packet, CommPacket::PACKED_SIZE, false));
       }
     }
     os_runloop_once();

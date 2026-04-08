@@ -102,12 +102,14 @@ void CommHub::process_event(void *args, ev_t event) {
 
 void CommHub::process_rx(void *args, uint8_t port, const uint8_t *msg,
                          size_t msg_size) {
-  ESP_LOGI(TAG, "Received message of size %zu at port %" PRIu8, msg_size, port);
+  ESP_LOGI(TAG, "Parsing packet of size %zu at port %" PRIu8, msg_size, port);
   if (msg_size != CommPacket::PACKED_SIZE) {
     ESP_LOGW(TAG, "Unrecognized packet size");
     return;
   }
-  CommPacket packet = CommPacket::unpack(*(const uint32_t *)msg);
+  const uint32_t raw_packet = *(const uint32_t *)msg;
+  ESP_LOGI(TAG, "Received packet: %" PRIx32, raw_packet);
+  CommPacket packet = CommPacket::unpack(raw_packet);
   if (packet.room != instance.room) {
     ESP_LOGI(TAG, "Packet targeted at a different room (%u), ignoring",
              packet.room);

@@ -77,12 +77,12 @@ TASK(process_samples, {
       const auto [hr, spo2] = calc_hr_spo2();
       char hr_buf[11], spo2_buf[11];
       if (hr.has_value()) {
-        snprintf(hr_buf, sizeof(hr_buf), "%3" PRIi32, hr.value());
+        snprintf(hr_buf, sizeof(hr_buf), "%3" PRIu8, hr.value());
       } else {
         strncpy(hr_buf, "N/A", sizeof(hr_buf));
       }
       if (spo2.has_value()) {
-        snprintf(spo2_buf, sizeof(spo2_buf), "%3" PRIi32, spo2.value());
+        snprintf(spo2_buf, sizeof(spo2_buf), "%3" PRIu8, spo2.value());
       } else {
         strncpy(spo2_buf, "N/A", sizeof(spo2_buf));
       }
