@@ -44,7 +44,7 @@ void AlertSystem::apply_state(const AlertState state) {
       ESP_ERROR_CHECK(gpio_set_level(pin_config.buzzer, 0));
     break;
   }
-  case AlertState::ERROR: {
+  case AlertState::CRITICAL: {
     if (pin_config.led_red != GPIO_NUM_NC)
       ESP_ERROR_CHECK(gpio_set_level(pin_config.led_red, 1));
     if (pin_config.led_green != GPIO_NUM_NC)

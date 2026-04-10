@@ -74,7 +74,7 @@ TASK(process, {
 
   const auto calc_warning = [](const PatientData &patient) {
     if (patient.heart_rate.has_value() &&
-        (patient.heart_rate.value() > 140 || patient.heart_rate.value() < 40)) {
+        (patient.heart_rate.value() > 150 || patient.heart_rate.value() < 30)) {
       return true;
     }
     if (patient.spo2.has_value() && patient.spo2.value() < 90) {
@@ -83,9 +83,20 @@ TASK(process, {
     return false;
   };
 
+  const auto calc_critical = [](const PatientData &patient) {
+    if (patient.heart_rate.has_value() &&
+        (patient.heart_rate.value() > 190 || patient.heart_rate.value() < 10)) {
+      return true;
+    }
+    if (patient.spo2.has_value() && patient.spo2.value() < 60) {
+      return true;
+    }
+    return false;
+  };
+
   ESP_LOGI("process", "Started");
 
-  bool has_warning = false;
+  AlertState alert_state = AlertState::OK;
 
   for (;;) {
     const auto maybe_packet = comm.receivePacket(portMAX_DELAY);
@@ -101,13 +112,15 @@ TASK(process, {
       ESP_LOGI("process", "Received heart data update for patient %u",
                packet.bed);
       if (!patient_data[packet.bed].has_value()) {
-        patient_data[packet.bed].emplace(
-            PatientData{.heart_rate = {}, .spo2 = {}, .is_warning = false});
+        patient_data[packet.bed].emplace(PatientData{
+            .heart_rate = {}, .spo2 = {}, .state = PatientState::OK});
       }
       PatientData &patient = patient_data[packet.bed].value();
       patient.heart_rate = packet.heart_data.hr;
       patient.spo2 = packet.heart_data.spo2;
-      patient.is_warning = calc_warning(patient);
+      patient.state = calc_critical(patient)  ? PatientState::CRITICAL
+                      : calc_warning(patient) ? PatientState::WARNING
+                                              : PatientState::OK;
       updated_data = true;
       break;
     }
@@ -119,14 +132,23 @@ TASK(process, {
 
       const bool new_has_warning = std::any_of(
           patient_data.begin(), patient_data.end(), [](const auto &patient) {
-            return patient.has_value() && patient.value().is_warning;
+            return patient.has_value() &&
+                   patient.value().state == PatientState::WARNING;
           });
-      if (new_has_warning != has_warning) {
-        has_warning = new_has_warning;
+      const bool new_has_critical = std::any_of(
+          patient_data.begin(), patient_data.end(), [](const auto &patient) {
+            return patient.has_value() &&
+                   patient.value().state == PatientState::CRITICAL;
+          });
+      const AlertState new_alert_state = new_has_critical ? AlertState::CRITICAL
+                                         : new_has_warning ? AlertState::WARNING
+                                                           : AlertState::OK;
+      if (new_alert_state != alert_state) {
+        alert_state = new_alert_state;
         ESP_LOGI("process", "%s",
-                 has_warning ? "New warnings generated"
-                             : "All warnings resolved");
-        alert.set_state(has_warning ? AlertState::WARNING : AlertState::OK);
+                 new_alert_state != AlertState::OK ? "New warnings generated"
+                                                   : "All warnings resolved");
+        alert.set_state(alert_state);
       }
     }
   }

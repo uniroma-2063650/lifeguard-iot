@@ -235,8 +235,10 @@ void Monitor::draw_patient_data(
           text(grid_i_x1 + 6 * 5, grid_i_y1 + 2 * 7, "N/A");
         }
         text(grid_i_x1 + 2, grid_i_y1 + 3 * 7,
-             patient.is_warning ? "  WARNING  " : "  HEALTHY  ");
-        if (patient.is_warning) {
+             patient.state == PatientState::CRITICAL  ? "  CRITICAL "
+             : patient.state == PatientState::WARNING ? "  WARNING  "
+                                                      : "  HEALTHY  ");
+        if (patient.state != PatientState::OK) {
           invert(grid_x1 + 1, grid_y1 + 1, grid_x2 - 1, grid_y2 - 1);
         }
       } else {

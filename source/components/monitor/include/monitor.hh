@@ -1,17 +1,23 @@
 #pragma once
 
 #include <array>
-#include <optional>
 #include <cstddef>
 #include <cstdint>
 #include <driver/i2c_master.h>
 #include <esp_lcd_types.h>
+#include <optional>
 #include <soc/gpio_num.h>
+
+enum class PatientState {
+  OK,
+  WARNING,
+  CRITICAL,
+};
 
 struct PatientData {
   std::optional<uint8_t> heart_rate;
   std::optional<uint8_t> spo2;
-  bool is_warning;
+  PatientState state;
 };
 
 struct MonitorPinConfig {
@@ -47,9 +53,9 @@ struct Monitor {
   void square(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2);
   void square_dotted(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2);
   void number(uint8_t x1, uint8_t y1, uint32_t value);
-  void text(uint8_t x1, uint8_t y1, const char* value);
+  void text(uint8_t x1, uint8_t y1, const char *value);
 
-  void draw_patient_data(const std::array<std::optional<PatientData>, 4>& data);
+  void draw_patient_data(const std::array<std::optional<PatientData>, 4> &data);
 
   inline ~Monitor() { i2c_master_bus_rm_device(dev); }
 

@@ -8,7 +8,7 @@
 enum class AlertState {
   OK,
   WARNING,
-  ERROR,
+  CRITICAL,
 };
 
 struct AlertPinConfig {
