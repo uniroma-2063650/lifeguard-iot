@@ -63,7 +63,7 @@ static uint8_t* font[129] = {
   empty,
   empty,
   empty,
-  empty,
+  slash,
 
   digits[0],
   digits[1],
