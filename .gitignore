@@ -1,7 +1,13 @@
-/.vscode
-/.clangd
+.vscode
+*.o
+*.out
+*.elf
+.clangd
+.cache
+build
+managed_components
+.venv
+node_modules
 sdkconfig
 sdkconfig.old
-build
-.cache
 *.bak.*
