@@ -1,3 +1,7 @@
+#include "comm_strap.hh"
+#include "fft_hr_spo2.h"
+#include "i2c.hh"
+#include "max30102.hh"
 #include <cstdio>
 #include <cstring>
 #include <esp_log.h>
@@ -7,11 +11,6 @@
 #include <optional>
 #include <utility>
 
-#include "comm_strap.hh"
-#include "i2c.hh"
-#include "max30102.hh"
-#include "maxim_hr_spo2.h"
-
 #define PDPASS_TO_ERR_OK(x) ((x) == pdPASS ? ESP_OK : ESP_FAIL)
 #define PD_ERROR_CHECK(x) ESP_ERROR_CHECK(PDPASS_TO_ERR_OK(x))
 
@@ -20,24 +19,21 @@
 
 static TaskHandle_t process_samples_task_handle;
 
-constexpr size_t BUF_SIZE = MAXIM_HR_SPO2_BUFFER_SIZE;
+constexpr size_t BUF_SIZE = 128;
 static uint32_t red_samples[BUF_SIZE], ir_samples[BUF_SIZE];
+
+constexpr const uint8_t SAMPLE_RATE = 25;
+constexpr const uint8_t CUTOFF_BPM_LOW = 20;
+constexpr const uint8_t DECAY_BPS_HIGH = 5;
 
 static std::pair<std::optional<uint8_t>, std::optional<uint8_t>>
 calc_hr_spo2() {
-  int32_t spo2, hr;
-  int8_t spo2_valid, hr_valid;
-  maxim_heart_rate_and_oxygen_saturation(ir_samples, BUF_SIZE, red_samples,
-                                         &spo2, &spo2_valid, &hr, &hr_valid);
+  const auto [hr, spo2] =
+      calc_hr_spo2_fft(red_samples, ir_samples, BUF_SIZE, SAMPLE_RATE,
+                       CUTOFF_BPM_LOW, DECAY_BPS_HIGH);
   return {
-      hr_valid ? (hr > 254 ? 254
-                  : hr < 0 ? 0
-                           : hr)
-               : std::optional<uint8_t>{},
-      spo2_valid ? (spo2 > 100 ? 100
-                    : spo2 < 0 ? 0
-                               : spo2)
-                 : std::optional<uint8_t>{},
+      hr > 254 ? 254 : hr,
+      spo2 > 100 ? 100 : spo2,
   };
 }
 
