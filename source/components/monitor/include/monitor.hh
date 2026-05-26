@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <driver/i2c_master.h>
 #include <esp_lcd_types.h>
+#include <esp_pm.h>
 #include <optional>
 #include <soc/gpio_num.h>
 
@@ -66,4 +67,6 @@ private:
   esp_lcd_panel_handle_t panel_handle;
 
   MonitorPinConfig pin_config;
+
+  esp_pm_lock_handle_t sleep_lock;
 };

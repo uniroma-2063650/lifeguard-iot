@@ -27,6 +27,16 @@ Monitor::Monitor(i2c_master_bus_handle_t bus, uint8_t i2c_addr,
   ESP_ERROR_CHECK(gpio_config(&power_config));
   ESP_ERROR_CHECK(gpio_set_level(pin_config.power, 0));
 
+  if (esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0,
+                         "MAX30102 I2C light sleep lock",
+                         &sleep_lock) != ESP_OK) {
+    sleep_lock = nullptr;
+  }
+
+  if (sleep_lock) {
+    ESP_ERROR_CHECK(esp_pm_lock_acquire(sleep_lock));
+  }
+
   esp_lcd_panel_io_handle_t io_handle;
   esp_lcd_panel_io_i2c_config_t io_config = {.dev_addr = i2c_addr,
                                              .scl_speed_hz = LCD_PIXEL_CLOCK_HZ,
@@ -65,6 +75,10 @@ Monitor::Monitor(i2c_master_bus_handle_t bus, uint8_t i2c_addr,
   ESP_ERROR_CHECK(
       esp_lcd_panel_io_tx_param(io_handle, 0x81, &display_brightness, 1));
   ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
+
+  if (sleep_lock) {
+    ESP_ERROR_CHECK(esp_pm_lock_release(sleep_lock));
+  }
 }
 
 void Monitor::clear(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2) {
@@ -191,8 +205,14 @@ void Monitor::flush(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2) {
     }
   }
 
+  if (sleep_lock) {
+    ESP_ERROR_CHECK(esp_pm_lock_acquire(sleep_lock));
+  }
   ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, x1, y1, x2 + 1,
                                             y2 + 1, bitmap_translated.data()));
+  if (sleep_lock) {
+    ESP_ERROR_CHECK(esp_pm_lock_release(sleep_lock));
+  }
 }
 
 void Monitor::draw_patient_data(
