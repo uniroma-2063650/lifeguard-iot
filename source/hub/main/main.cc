@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <array>
-#include <cstdlib>
 #include <freertos/FreeRTOS.h>
 #include <freertos/projdefs.h>
 #include <freertos/task.h>
@@ -19,31 +18,10 @@
 
 static AlertSystem alert(AlertPinConfig::DISCONNECTED);
 
-static TaskHandle_t produce_test_data_task_handle;
 static TaskHandle_t redraw_monitor_task_handle;
 static TaskHandle_t process_task_handle;
 
 constexpr uint8_t ROOM = 0;
-
-TASK(produce_test_data, {
-  srand(0);
-  for (;;) {
-    vTaskDelay(pdMS_TO_TICKS(500));
-    const uint8_t room = ROOM;
-    const uint8_t bed = rand() % 4;
-    CommPacket packet{
-        .room = room,
-        .bed = bed,
-        .kind = CommPacketKind::HEART_DATA,
-        .heart_data =
-            CommPacketHeartData{
-                .hr = rand() % 181,
-                .spo2 = 80 + rand() % 21,
-            },
-    };
-    xQueueSend(CommHub::get().getQueue(), &packet, pdMS_TO_TICKS(100));
-  }
-});
 
 static QueueHandle_t redraw_monitor_queue;
 
@@ -99,70 +77,62 @@ TASK(process, {
   AlertState alert_state = AlertState::OK;
 
   for (;;) {
-    const auto maybe_packet = comm.receivePacket(portMAX_DELAY);
-    if (!maybe_packet.has_value()) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    const auto maybe_update = comm.receive_update(portMAX_DELAY);
+    if (!maybe_update.has_value()) {
       continue;
     }
-    const auto &packet = maybe_packet.value();
+    const auto &update = maybe_update.value();
 
-    bool updated_data = false;
-
-    switch (packet.kind) {
-    case CommPacketKind::HEART_DATA: {
-      ESP_LOGI("process", "Received heart data update for patient %u",
-               packet.bed);
-      if (!patient_data[packet.bed].has_value()) {
-        patient_data[packet.bed].emplace(PatientData{
+    ESP_LOGI("process", "Received heart data update for patient %" PRIu8,
+             update.bed);
+    if (update.data.has_value()) {
+      const CommPatientData &new_data = update.data.value();
+      if (!patient_data[update.bed].has_value()) {
+        patient_data[update.bed].emplace(PatientData{
             .heart_rate = {}, .spo2 = {}, .state = PatientState::OK});
       }
-      PatientData &patient = patient_data[packet.bed].value();
-      patient.heart_rate = packet.heart_data.hr;
-      patient.spo2 = packet.heart_data.spo2;
+      PatientData &patient = patient_data[update.bed].value();
+      patient.heart_rate = new_data.heart_rate;
+      patient.spo2 = new_data.spo2;
       patient.state = calc_critical(patient)  ? PatientState::CRITICAL
                       : calc_warning(patient) ? PatientState::WARNING
                                               : PatientState::OK;
-      updated_data = true;
-      break;
-    }
+    } else {
+      patient_data[update.bed].reset();
     }
 
-    if (updated_data) {
-      ESP_LOGI("process", "Sending redraw request");
-      xQueueOverwrite(redraw_monitor_queue, &patient_data);
+    ESP_LOGI("process", "Sending redraw request");
+    xQueueOverwrite(redraw_monitor_queue, &patient_data);
 
-      const bool new_has_warning = std::any_of(
-          patient_data.begin(), patient_data.end(), [](const auto &patient) {
-            return patient.has_value() &&
-                   patient.value().state == PatientState::WARNING;
-          });
-      const bool new_has_critical = std::any_of(
-          patient_data.begin(), patient_data.end(), [](const auto &patient) {
-            return patient.has_value() &&
-                   patient.value().state == PatientState::CRITICAL;
-          });
-      const AlertState new_alert_state = new_has_critical ? AlertState::CRITICAL
-                                         : new_has_warning ? AlertState::WARNING
-                                                           : AlertState::OK;
-      if (new_alert_state != alert_state) {
-        alert_state = new_alert_state;
-        ESP_LOGI("process", "%s",
-                 new_alert_state != AlertState::OK ? "New warnings generated"
-                                                   : "All warnings resolved");
-        alert.set_state(alert_state);
-      }
+    const bool new_has_warning = std::any_of(
+        patient_data.begin(), patient_data.end(), [](const auto &patient) {
+          return patient.has_value() &&
+                 patient.value().state == PatientState::WARNING;
+        });
+    const bool new_has_critical = std::any_of(
+        patient_data.begin(), patient_data.end(), [](const auto &patient) {
+          return patient.has_value() &&
+                 patient.value().state == PatientState::CRITICAL;
+        });
+    const AlertState new_alert_state = new_has_critical  ? AlertState::CRITICAL
+                                       : new_has_warning ? AlertState::WARNING
+                                                         : AlertState::OK;
+    if (new_alert_state != alert_state) {
+      alert_state = new_alert_state;
+      ESP_LOGI("process", "%s",
+               new_alert_state != AlertState::OK ? "New warnings generated"
+                                                 : "All warnings resolved");
+      alert.set_state(alert_state);
     }
   }
 });
 
 extern "C" void app_main(void) {
-  CommHub::init(true, 0, ROOM);
+  CommHub::init(ROOM);
 
   alert.set_pin_config(AlertPinConfig::DEFAULT);
   alert.start();
-
-  // TODO: Just for testing
-  PD_ERROR_CHECK(xTaskCreate(produce_test_data, "produce_test_data", 4096,
-                             nullptr, 5, &produce_test_data_task_handle));
 
   redraw_monitor_queue =
       xQueueCreate(1, sizeof(std::array<std::optional<PatientData>, 4>));

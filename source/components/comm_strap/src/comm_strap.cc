@@ -1,115 +1,78 @@
 #include "comm_strap.hh"
-#include "comm_common_priv.hh"
-#include "lmic/lmic.h"
-#include "lmic_hal/hal.hh"
+#include "comm_common.hh"
+#include <esp_bt.h>
+#include <nimble/nimble_port.h>
+#include <nimble/nimble_port_freertos.h>
+#include <nvs_flash.h>
 
-constexpr const TickType_t QUEUE_TIMEOUT = pdMS_TO_TICKS(100);
+constexpr const char *DEVICE_NAME_PREFIX = "Lfgd Strap ";
 
-static inline LMIC_SecureElement_EUI_t DEV_EUI{
-    .bytes = {'L', 'F', 'G', 'D', '_', 'S', 'T', 'P'}};
+extern "C" void ble_store_config_init(void);
 
-void os_getDevEui(u1_t *buf) {
-  os_copyMem(buf, DEV_EUI.bytes, sizeof(LMIC_SecureElement_EUI_t));
-}
-void os_getArtEui(u1_t *buf) {
-  os_copyMem(buf, APP_EUI.bytes, sizeof(LMIC_SecureElement_EUI_t));
-}
-void os_getDevKey(u1_t *buf) {
-  os_copyMem(buf, APP_KEY.bytes, sizeof(LMIC_SecureElement_Aes128Key_t));
-}
-
+bool CommStrap::is_running = false;
 CommStrap CommStrap::instance{};
 
-void CommStrap::start(bool is_heltec_v3, const BaseType_t core) {
-  Comm::start(is_heltec_v3, core, CommStrap::run);
+void CommStrap::init_nvs() {
+  esp_err_t ret = nvs_flash_init();
+  if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+      ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    ret = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(ret);
 }
 
-void CommStrap::run(Comm *args) {
-  CommStrap *self = (CommStrap *)args;
-  self->start_in_task();
+void CommStrap::init_config() {
+  ble_hs_cfg.sync_cb = initialized_static;
+  ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
+  ble_store_config_init();
+}
 
-  ESP_LOGI(TAG, "Registering event callback...");
+void CommStrap::initialized() {
+  ESP_ERROR_CHECK(
+      esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_N18));
+  ESP_ERROR_CHECK(esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_N18));
+  start_gap();
+}
 
-  LMIC_registerEventCb(CommStrap::process_event, nullptr);
-
-  ESP_LOGI(TAG, "Starting joining...");
-
-  LMIC_startJoining();
-
-  ESP_LOGI(TAG, "Started");
-
-  for (;;) {
-    {
-      MaybeUninit<CommPacket> packet;
-      while (xQueueReceive(instance.queue, &packet, 0) == pdTRUE) {
-        const uint32_t packed_packet = packet.value.pack();
-        ESP_LOGI(TAG, "Sending packet (kind = %u): %" PRIx32, packet.value.kind,
-                 packed_packet);
-        // TODO: Need a working network for this
-        // LMIC_TX_ERROR_CHECK(LMIC_setTxData2_strict(
-        //     PORT, (u1_t *)&packed_packet, CommPacket::PACKED_SIZE, false));
-      }
-    }
-    os_runloop_once();
-  }
-
+void CommStrap::run() {
+  nimble_port_run();
+  nimble_port_deinit();
   vTaskDelete(nullptr);
 }
 
-void CommStrap::process_event(void *args, ev_t event) {
-  const char *event_name = event_type_to_name(event);
-  if (event_name) {
-    ESP_LOGI(TAG, "Received event of type %s", event_name);
-  } else {
-    ESP_LOGI(TAG, "Received event of unknown type %02X", event);
+void CommStrap::set_heart_rate(const std::optional<uint8_t> heart_rate) {
+  if (heart_rate == patient_data.heart_rate && !needs_new_hr) {
+    return;
   }
-  switch (event) {
-  case EV_JOINING:
-    break;
-  case EV_JOINED:
-    break;
-  case EV_JOIN_FAILED:
-    break;
-  case EV_REJOIN_FAILED:
-    break;
-  case EV_TXCOMPLETE:
-    break;
-  case EV_RXCOMPLETE:
-    break;
-  case EV_SCAN_TIMEOUT:
-    break;
-  case EV_BEACON_FOUND:
-    break;
-  case EV_BEACON_TRACKED:
-    break;
-  case EV_BEACON_MISSED:
-    break;
-  case EV_LOST_TSYNC:
-    break;
-  case EV_RESET:
-    break;
-  case EV_LINK_DEAD:
-    break;
-  case EV_LINK_ALIVE:
-    break;
-  case EV_SCAN_FOUND:
-    break;
-  case EV_TXSTART:
-    break;
-  case EV_TXCANCELED:
-    break;
-  case EV_RXSTART:
-    break;
-  case EV_JOIN_TXCOMPLETE:
-    break;
-  default: {
-    ESP_LOGW(TAG, "Unknown event type: %02X", event);
-    break;
-  }
-  }
+  patient_data.heart_rate = heart_rate;
+  signal_gatt_heart_rate_change();
+  needs_new_hr = false;
 }
 
-void CommStrap::sendPacket(const CommPacket packet) {
-  PD_ERROR_CHECK(xQueueSend(queue, &packet, QUEUE_TIMEOUT));
-  ESP_IDF_LMIC::lmic_hal_wake_task();
+void CommStrap::set_spo2(const std::optional<uint8_t> spo2) {
+  if (spo2 == patient_data.spo2 && !needs_new_spo2) {
+    return;
+  }
+  patient_data.spo2 = spo2;
+  signal_gatt_spo2_change();
+  needs_new_spo2 = false;
+}
+
+void CommStrap::start(const uint16_t room, const uint8_t bed,
+                      const UBaseType_t priority) {
+  this->room = room;
+  this->bed = bed;
+  needs_new_hr = false;
+  needs_new_spo2 = false;
+  snprintf(device_name, sizeof(device_name), "%s%" PRIu16 ":%" PRIu8,
+           DEVICE_NAME_PREFIX, room, bed);
+  init_nvs();
+  ESP_ERROR_CHECK(nimble_port_init());
+  init_gap();
+  init_gatt();
+  init_config();
+  PD_ERROR_CHECK(xTaskCreatePinnedToCore(run_static, "comm",
+                                         NIMBLE_HS_STACK_SIZE, this, priority,
+                                         &task, NIMBLE_CORE));
 }

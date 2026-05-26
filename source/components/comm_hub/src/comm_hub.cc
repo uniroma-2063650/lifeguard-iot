@@ -1,126 +1,73 @@
 #include "comm_hub.hh"
-#include "comm_common_priv.hh"
-#include "lmic/lmic.h"
+#include "comm_common.hh"
+#include <nimble/nimble_port.h>
+#include <nimble/nimble_port_freertos.h>
+#include <nvs_flash.h>
 
-constexpr const TickType_t QUEUE_TIMEOUT = pdMS_TO_TICKS(100);
+constexpr const char *DEVICE_NAME_PREFIX = "Lfgd Hub ";
 
-static inline LMIC_SecureElement_EUI_t DEV_EUI{
-    .bytes = {'L', 'F', 'G', 'D', '_', 'H', 'U', 'B'}};
+constexpr const size_t QUEUE_SIZE = 4;
 
-void os_getDevEui(u1_t *buf) {
-  os_copyMem(buf, DEV_EUI.bytes, sizeof(LMIC_SecureElement_EUI_t));
-}
-void os_getArtEui(u1_t *buf) {
-  os_copyMem(buf, APP_EUI.bytes, sizeof(LMIC_SecureElement_EUI_t));
-}
-void os_getDevKey(u1_t *buf) {
-  os_copyMem(buf, APP_KEY.bytes, sizeof(LMIC_SecureElement_Aes128Key_t));
-}
+extern "C" void ble_store_config_init(void);
 
+bool CommHub::is_running = false;
 CommHub CommHub::instance{};
 
-void CommHub::start(bool is_heltec_v3, const BaseType_t core,
-                    const uint8_t room) {
-  this->room = room;
-  Comm::start(is_heltec_v3, core, CommHub::run);
+void CommHub::init_nvs() {
+  esp_err_t ret = nvs_flash_init();
+  if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+      ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    ret = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(ret);
 }
 
-void CommHub::run(Comm *args) {
-  CommHub *self = (CommHub *)args;
-  self->start_in_task();
+void CommHub::init_config() {
+  ble_hs_cfg.sync_cb = initialized_static;
+  ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
+  ble_store_config_init();
+}
 
-  ESP_LOGI(TAG, "Registering event callback...");
+void CommHub::initialized() { start_gap(); }
 
-  LMIC_registerEventCb(CommHub::process_event, nullptr);
-  LMIC_registerRxMessageCb(CommHub::process_rx, nullptr);
-
-  ESP_LOGI(TAG, "Starting joining...");
-
-  LMIC_startJoining();
-
-  ESP_LOGI(TAG, "Started");
-
-  for (;;) {
-    os_runloop_once();
-  }
-
+void CommHub::run() {
+  nimble_port_run();
+  nimble_port_deinit();
   vTaskDelete(nullptr);
 }
 
-void CommHub::process_event(void *args, ev_t event) {
-  const char *event_name = event_type_to_name(event);
-  if (event_name) {
-    ESP_LOGI(TAG, "Received event of type %s", event_name);
-  } else {
-    ESP_LOGI(TAG, "Received event of unknown type %02X", event);
-  }
-  switch (event) {
-  case EV_JOINING:
-    break;
-  case EV_JOINED:
-    break;
-  case EV_JOIN_FAILED:
-    break;
-  case EV_REJOIN_FAILED:
-    break;
-  case EV_TXCOMPLETE:
-    break;
-  case EV_RXCOMPLETE:
-    break;
-  case EV_SCAN_TIMEOUT:
-    break;
-  case EV_BEACON_FOUND:
-    break;
-  case EV_BEACON_TRACKED:
-    break;
-  case EV_BEACON_MISSED:
-    break;
-  case EV_LOST_TSYNC:
-    break;
-  case EV_RESET:
-    break;
-  case EV_LINK_DEAD:
-    break;
-  case EV_LINK_ALIVE:
-    break;
-  case EV_SCAN_FOUND:
-    break;
-  case EV_TXSTART:
-    break;
-  case EV_TXCANCELED:
-    break;
-  case EV_RXSTART:
-    break;
-  case EV_JOIN_TXCOMPLETE:
-    break;
-  default: {
-    ESP_LOGW(TAG, "Unknown event type: %02X", event);
-    break;
-  }
-  }
+void CommHub::start(const uint16_t room, const UBaseType_t priority) {
+  conn_to_bed.clear();
+  addr_to_bed.clear();
+  patient_data.clear();
+
+  this->room = room;
+  snprintf(device_name, sizeof(device_name), "%s%" PRIu16, DEVICE_NAME_PREFIX,
+           room);
+  init_nvs();
+  ESP_ERROR_CHECK(nimble_port_init());
+  init_gap();
+
+#if MYNEWT_VAL(BLE_INCL_SVC_DISCOVERY) ||                                      \
+    MYNEWT_VAL(BLE_GATT_CACHING_INCLUDE_SERVICES)
+  peer_init(MYNEWT_VAL(BLE_MAX_CONNECTIONS), 64, 64, 64, 64);
+#else
+  peer_init(MYNEWT_VAL(BLE_MAX_CONNECTIONS), 64, 64, 64);
+#endif
+
+  init_config();
+  queue = xQueueCreate(QUEUE_SIZE, sizeof(CommPatientUpdateData));
+  assert(queue);
+  PD_ERROR_CHECK(xTaskCreatePinnedToCore(run_static, "comm",
+                                         NIMBLE_HS_STACK_SIZE, this, priority,
+                                         &task, NIMBLE_CORE));
 }
 
-void CommHub::process_rx(void *args, uint8_t port, const uint8_t *msg,
-                         size_t msg_size) {
-  ESP_LOGI(TAG, "Parsing packet of size %zu at port %" PRIu8, msg_size, port);
-  if (msg_size != CommPacket::PACKED_SIZE) {
-    ESP_LOGW(TAG, "Unrecognized packet size");
-    return;
-  }
-  const uint32_t raw_packet = *(const uint32_t *)msg;
-  ESP_LOGI(TAG, "Received packet: %" PRIx32, raw_packet);
-  CommPacket packet = CommPacket::unpack(raw_packet);
-  if (packet.room != instance.room) {
-    ESP_LOGI(TAG, "Packet targeted at a different room (%u), ignoring",
-             packet.room);
-    return;
-  }
-  xQueueSend(instance.queue, &packet, QUEUE_TIMEOUT);
-}
-
-std::optional<CommPacket> CommHub::receivePacket(TickType_t timeout) {
-  MaybeUninit<CommPacket> packet;
-  return xQueueReceive(queue, &packet, timeout) == pdTRUE
-             ? packet.value
-             : std::optional<CommPacket>{};
+std::optional<CommPatientUpdateData>
+CommHub::receive_update(TickType_t timeout) {
+  CommPatientUpdateData update_data;
+  return xQueueReceive(queue, &update_data, timeout) == pdFALSE
+             ? std::optional<CommPatientUpdateData>{}
+             : update_data;
 }

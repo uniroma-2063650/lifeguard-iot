@@ -83,16 +83,14 @@ TASK(process_samples, {
         strncpy(spo2_buf, "N/A", sizeof(spo2_buf));
       }
       ESP_LOGI("HR-SpO2", "HR = %s, SpO2 = %s", hr_buf, spo2_buf);
-      CommStrap::get().sendPacket({.room = ROOM,
-                                   .bed = BED,
-                                   .kind = CommPacketKind::HEART_DATA,
-                                   .heart_data = {.hr = hr, .spo2 = spo2}});
+      CommStrap::get().set_heart_rate(hr);
+      CommStrap::get().set_spo2(spo2);
     }
   }
 });
 
 extern "C" void app_main(void) {
-  CommStrap::init(true, 0);
+  CommStrap::init(ROOM, BED);
 
   PD_ERROR_CHECK(xTaskCreate(process_samples, "process_samples", 8192, nullptr,
                              5, &process_samples_task_handle));
