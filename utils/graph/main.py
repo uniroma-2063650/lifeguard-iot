@@ -73,27 +73,38 @@ def main():
                     series_[i] *= scale
 
         n_plots = len(sample_series_sets) + len(freq_series_sets)
+        fig = plt.figure(tight_layout=True)
+        subplots = fig.subplots(nrows=n_plots, ncols=1)
         for i, (series_set, series_set_name) in enumerate(zip(sample_series_sets, sample_series_set_names)):
-            plt.subplot(n_plots, 1, i + 1)
-            plt.title(series_set_name)
+            subplot = subplots[i]
+            subplot.set_title(series_set_name)
             for (series, series_name) in zip(series_set, series_names):
-                plt.plot(
+                subplot.plot(
                     [j / samples_per_second for j in range(len(series))],
                     series,
                     label=series_name
                 )
-            plt.legend()
+            subplot.set_xlabel("Time (s)")
+            subplot.set_yticks([])
+            subplot.legend(loc="upper right")
         for i, (series_set, series_set_name) in enumerate(zip(freq_series_sets, freq_series_set_names)):
-            plt.subplot(n_plots, 1, i + 1 + len(sample_series_sets))
-            plt.title(series_set_name)
+            subplot = subplots[i + len(sample_series_sets)]
+            subplot.set_title(series_set_name)
             for (series, series_name) in zip(series_set, series_names):
-                plt.plot(
+                subplot.plot(
                     list(map(lambda v: v * 60, rfftfreq(len(samples), 1 / samples_per_second))),
                     series,
                     label=series_name
                 )
-            plt.legend()
-        plt.tight_layout()
+            subplot.set_xlabel("Frequency (Hz)")
+            subplot.set_yticks([])
+            subplot.legend(loc="upper right")
+
+        def on_resize(event):
+            fig.tight_layout()
+            fig.canvas.draw()
+
+        cid = fig.canvas.mpl_connect('resize_event', on_resize)
         plt.show()
 
 main()
