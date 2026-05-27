@@ -16,7 +16,7 @@ struct MAX30102PinConfig {
 };
 
 inline MAX30102PinConfig MAX30102PinConfig::DEFAULT = {
-    .interrupt = GPIO_NUM_4,
+    .interrupt = GPIO_NUM_1,
 };
 
 struct MAX30102 {

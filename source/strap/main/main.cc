@@ -20,8 +20,8 @@ constexpr uint8_t BED = 0;
 
 TASK(process_samples, {
   I2CMasterBus bus(I2cMasterBusConfig{
-      .sda = GPIO_NUM_1,
-      .scl = GPIO_NUM_2,
+      .sda = GPIO_NUM_2,
+      .scl = GPIO_NUM_4,
       .clock_source = I2C_CLK_SRC_DEFAULT,
       .port = I2C_NUM_0,
   });
