@@ -159,6 +159,14 @@ private:
     const uint8_t hr_median = median(hr_sorted.data(), hr_sorted_len);
     const uint8_t spo2_median = median(spo2_sorted.data(), spo2_sorted_len);
 
+    if (hr_median <= SUSPICIOUS_LOW_HR_THRESHOLD ||
+        hr_median >= SUSPICIOUS_HIGH_HR_THRESHOLD ||
+        spo2_median <= SUSPICIOUS_LOW_SPO2_THRESHOLD) {
+      ESP_LOGI(TAG, "Lower frequency: false %u %u %u %u %u %u", __LINE__,
+               hr_median, spo2_median);
+      return false;
+    }
+
     for (size_t i = 0; i < hr_sorted_len; i++) {
       const uint8_t value = hr_sorted[i];
       hr_sorted[i] = value < hr_median ? hr_median - value : value - hr_median;

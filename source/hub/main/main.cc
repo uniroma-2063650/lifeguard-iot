@@ -52,10 +52,10 @@ TASK(process, {
 
   const auto calc_warning = [](const PatientData &patient) {
     if (patient.heart_rate.has_value() &&
-        (patient.heart_rate.value() > 150 || patient.heart_rate.value() < 30)) {
+        (patient.heart_rate.value() > 120 || patient.heart_rate.value() < 40)) {
       return true;
     }
-    if (patient.spo2.has_value() && patient.spo2.value() < 90) {
+    if (patient.spo2.has_value() && patient.spo2.value() < 95) {
       return true;
     }
     return false;
@@ -63,10 +63,10 @@ TASK(process, {
 
   const auto calc_critical = [](const PatientData &patient) {
     if (patient.heart_rate.has_value() &&
-        (patient.heart_rate.value() > 190 || patient.heart_rate.value() < 10)) {
+        (patient.heart_rate.value() > 160 || patient.heart_rate.value() < 30)) {
       return true;
     }
-    if (patient.spo2.has_value() && patient.spo2.value() < 60) {
+    if (patient.spo2.has_value() && patient.spo2.value() < 90) {
       return true;
     }
     return false;
