@@ -77,7 +77,6 @@ TASK(process, {
   AlertState alert_state = AlertState::OK;
 
   for (;;) {
-    vTaskDelay(pdMS_TO_TICKS(1000));
     const auto maybe_update = comm.receive_update(portMAX_DELAY);
     if (!maybe_update.has_value()) {
       continue;
