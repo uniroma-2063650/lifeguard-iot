@@ -104,7 +104,7 @@ def main():
             fig.tight_layout()
             fig.canvas.draw()
 
-        cid = fig.canvas.mpl_connect('resize_event', on_resize)
+        cid = fig.canvas.mpl_connect("resize_event", on_resize)
         plt.show()
 
 main()
