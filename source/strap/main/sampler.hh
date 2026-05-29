@@ -242,6 +242,8 @@ public:
       ir_samples[filled] = samples[1];
       filled++;
       if (filled >= BUF_SIZE) {
+        ESP_LOGI(TAG, "Starting HR/SpO2 processing");
+
         if (cpu_freq_lock) {
           ESP_ERROR_CHECK(esp_pm_lock_acquire(cpu_freq_lock));
         }

@@ -57,7 +57,7 @@ static void print_conn_desc(const ble_gap_conn_desc *desc) {
            desc->peer_id_addr.type, PRINT_ADDR_VALS(desc->peer_id_addr.val));
   ESP_LOGI(TAG,
            "conn_itvl: %d, conn_latency: %d, supervision_timeout: %d, "
-           "encrypted: %d, authenticated: %d, bonded: %d\n",
+           "encrypted: %d, authenticated: %d, bonded: %d",
            desc->conn_itvl, desc->conn_latency, desc->supervision_timeout,
            desc->sec_state.encrypted, desc->sec_state.authenticated,
            desc->sec_state.bonded);
