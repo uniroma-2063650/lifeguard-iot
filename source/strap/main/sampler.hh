@@ -50,8 +50,8 @@ private:
   // https://www.vinmec.com/eng/blog/what-is-the-spo2-index-in-a-normal-person-en
   static constexpr const uint8_t SUSPICIOUS_LOW_SPO2_THRESHOLD = 93;
 
-  static constexpr const uint32_t NORMAL_CHECK_FREQUENCY_S = 10;
-  static constexpr const uint32_t REDUCED_CHECK_FREQUENCY_S = 60;
+  static constexpr const uint32_t NORMAL_CHECK_FREQUENCY_S = 5;
+  static constexpr const uint32_t REDUCED_CHECK_FREQUENCY_S = 30;
 
   static constexpr const int32_t NORMAL_CHECK_FREQUENCY_DELAY_US =
       1'000'000 * NORMAL_CHECK_FREQUENCY_S - 1'000'000 * BUF_SIZE / SAMPLE_RATE;
