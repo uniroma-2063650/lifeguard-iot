@@ -89,8 +89,10 @@ int CommHub::handle_gap_event(ble_gap_event *event) {
   switch (event->type) {
   case BLE_GAP_EVENT_DISC: {
     ble_hs_adv_fields adv_fields;
-    BLE_ERROR_CHECK(ble_hs_adv_parse_fields(&adv_fields, event->disc.data,
-                                            event->disc.length_data));
+    if (ble_hs_adv_parse_fields(&adv_fields, event->disc.data,
+                                event->disc.length_data) != 0) {
+      break;
+    }
     print_adv_fields(&adv_fields);
     connect_if_matches(adv_fields, event->disc);
     break;
