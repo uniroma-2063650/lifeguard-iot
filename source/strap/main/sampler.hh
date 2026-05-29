@@ -60,6 +60,9 @@ private:
       1'000'000 * BUF_SIZE / SAMPLE_RATE;
   static constexpr const uint32_t US_PER_SAMPLE = 1'000'000 / SAMPLE_RATE;
 
+  static constexpr const uint32_t MIN_SLEEP_US = std::max(
+      SKIP_SAMPLES_AFTER_SLEEP * US_PER_SAMPLE, 1000 * pdTICKS_TO_MS(1));
+
   MAX30102 &sensor;
 
   esp_pm_lock_handle_t cpu_freq_lock = nullptr;
@@ -267,12 +270,11 @@ public:
         int32_t delay_us = can_lower_check_frequency
                                ? REDUCED_CHECK_FREQUENCY_DELAY_US
                                : NORMAL_CHECK_FREQUENCY_DELAY_US;
-        while (delay_us >= US_PER_SAMPLE && sensor.sample_is_ready()) {
+        while (delay_us >= (int32_t)US_PER_SAMPLE && sensor.sample_is_ready()) {
           sensor.read_spo2_sample();
           delay_us -= US_PER_SAMPLE;
         }
-        if (delay_us >= std::max(SKIP_SAMPLES_AFTER_SLEEP * US_PER_SAMPLE,
-                                 1000 * pdTICKS_TO_MS(1))) {
+        if (delay_us >= (int32_t)MIN_SLEEP_US) {
           sensor.set_sleep();
           vTaskDelayUntil(
               &start_timestamp,

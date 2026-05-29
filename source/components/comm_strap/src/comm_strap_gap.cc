@@ -1,5 +1,6 @@
 #include "comm_common.hh"
 #include "comm_strap.hh"
+#include <algorithm>
 #include <esp_bt.h>
 #include <host/ble_gap.h>
 #include <host/util/util.h>
@@ -131,13 +132,15 @@ int CommStrap::handle_gap_event(ble_gap_event *event) {
       BLE_ERROR_CHECK(
           ble_gap_conn_find(event->connect.conn_handle, &conn_desc));
       print_conn_desc(&conn_desc);
-      const ble_gap_upd_params params = {.itvl_min = conn_desc.conn_itvl,
-                                         .itvl_max = conn_desc.conn_itvl,
-                                         .latency = 3,
-                                         .supervision_timeout =
-                                             conn_desc.supervision_timeout,
-                                         .min_ce_len = 0,
-                                         .max_ce_len = 0};
+      const ble_gap_upd_params params = {
+          .itvl_min = BLE_GAP_CONN_ITVL_MS(50),
+          .itvl_max = BLE_GAP_CONN_ITVL_MS(100),
+          .latency = 10,
+          .supervision_timeout =
+              std::max((uint16_t)BLE_GAP_SUPERVISION_TIMEOUT_MS(2000),
+                       conn_desc.supervision_timeout),
+          .min_ce_len = 0,
+          .max_ce_len = 0};
       BLE_ERROR_CHECK(
           ble_gap_update_params(event->connect.conn_handle, &params));
     } else {
