@@ -1,0 +1,16 @@
+---
+---
+
+@import 'theme';
+
+#main-content {
+    width: unset;
+}
+
+#main-content p:has(img) {
+    text-align: center;
+}
+
+#main-content img {
+    max-width: calc(min(690px, 100%));
+}

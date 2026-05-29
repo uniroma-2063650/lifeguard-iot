@@ -1,0 +1,27 @@
+title: Lifeguard
+description: >-
+  A distributed system for low-power, non-invasive patient health monitoring
+  and intervention
+baseurl: "/lifeguard-iot"
+url: "http://uniroma-2063650.github.io"
+future: true
+github_username: "uniroma-2063650"
+
+include: [_pages, _posts]
+
+defaults:
+  -
+    scope:
+      type: posts
+      path: _posts
+    values:
+      is_post: true
+      layout: post
+      permalink: /posts/:year-:month-:day-:title
+  -
+    scope:
+      type: pages
+      path: _pages
+    values:
+      is_post: false
+      layout: default
